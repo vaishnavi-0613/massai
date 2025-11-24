@@ -1,0 +1,3 @@
+const calculate = num => ({ square: num * num, cube: num * num * num });
+console.log(calculate(5));
+// { square: 25, cube: 125 }
