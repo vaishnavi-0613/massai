@@ -1,0 +1,16 @@
+// a) Arrow function isEven
+const isEven = n => n % 2 === 0;
+console.log(isEven(6)); // true
+console.log(isEven(7)); // false
+
+
+// b) Convert to ternary operator
+let marks = 40;
+let result = marks >= 35 ? "Pass" : "Fail";
+console.log(result);
+
+
+// c) Arrow function greet using ternary (default: "Guest")
+const greet = name => `Hello, ${name ? name : "Guest"}`;
+console.log(greet("Aman")); // Hello, Aman
+console.log(greet());       // Hello, Guest
