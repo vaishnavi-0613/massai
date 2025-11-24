@@ -1,0 +1,42 @@
+// a) Scoping: let / var
+if (true) {
+  let x = 10;
+  var y = 20;
+}
+
+console.log(y); // 20
+console.log(x); // ReferenceError: x is not defined
+
+// Explanation:
+// 'var' is function-scoped → accessible outside the block
+// 'let' is block-scoped → NOT accessible outside the block (causes error)
+
+
+
+// b) Optional chaining
+const profile = {
+  user: {
+    details: {
+      email: "test@mail.com"
+    }
+  }
+};
+
+console.log(profile?.user?.details?.email); // "test@mail.com"
+console.log(profile?.user?.details?.phone); // undefined (no error)
+
+
+
+// c) Example where optional chaining prevents runtime error
+const data = {
+  product: {
+    name: "Laptop"
+    // category missing
+  }
+};
+
+// Without optional chaining → would crash
+// console.log(data.product.category.name); ❌ ERROR
+
+// With optional chaining → safe
+console.log(data?.product?.category?.name); // undefined instead of crashing
