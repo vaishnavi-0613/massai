@@ -1,0 +1,373 @@
+// BookManagerApp.jsx
+// Single-file React component for a Book Management Web App using Firebase Firestore (modular SDK v9+)
+//
+// Features implemented:
+// - Realtime Firestore sync (onSnapshot)
+// - CRUD operations: Add, Update Author, Delete, View Details (modal)
+// - Sidebar form to add books
+// - 'Seed Dummy Books' button to insert 5 sample book documents into Firestore
+// - Responsive UI with grid: 3 cards per row on md+ screens
+//
+// Instructions:
+// 1. Create a Firebase project at https://console.firebase.google.com/
+// 2. Enable Firestore (Native mode).
+// 3. Grab your Firebase config object from Project Settings and paste into the firebaseConfig below.
+// 4. In your React app directory:
+//    - Install dependencies: `npm install firebase`
+//    - Optional but recommended: use Tailwind CSS for styling. The component uses Tailwind classes. If you don't use Tailwind,
+//      either add Tailwind or change classes to your CSS.
+// 5. Import and render <BookManagerApp /> in your app (e.g. in App.jsx).
+// 6. Run the app. Use the sidebar form to add books. Use 'Seed Dummy Books' to populate sample data.
+//
+// Security note: For production configure Firestore security rules. The example assumes development usage.
+
+import React, { useEffect, useState } from "react";
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot,
+  doc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  getDocs,
+} from "firebase/firestore";
+
+// ----- REPLACE with your Firebase config -----
+const firebaseConfig = {
+  apiKey: "REPLACE_WITH_YOUR_API_KEY",
+  authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
+  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
+  storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
+  messagingSenderId: "REPLACE_WITH_YOUR_SENDER_ID",
+  appId: "REPLACE_WITH_YOUR_APP_ID",
+};
+// ----------------------------------------------
+
+// initialize Firebase app and Firestore
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+export default function BookManagerApp() {
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sidebar, setSidebar] = useState({ title: "", author: "", price: "", imageURL: "" });
+  const [modalBook, setModalBook] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    // Realtime listener to 'books' collection, ordered by title
+    const q = query(collection(db, "books"), orderBy("title"));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setBooks(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Firestore onSnapshot error:", err);
+        setError("Failed to listen to books collection.");
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, []);
+
+  // Add a book to Firestore
+  async function handleAddBook(e) {
+    e.preventDefault();
+    try {
+      const { title, author, price, imageURL } = sidebar;
+      if (!title.trim() || !author.trim() || !price) return alert("Please fill title, author and price.");
+      const priceNum = Number(price);
+      if (Number.isNaN(priceNum)) return alert("Price must be a number.");
+
+      await addDoc(collection(db, "books"), {
+        title: title.trim(),
+        author: author.trim(),
+        price: priceNum,
+        coverImageURL: imageURL.trim() || null,
+        createdAt: new Date(),
+      });
+
+      setSidebar({ title: "", author: "", price: "", imageURL: "" });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add book: " + err.message);
+    }
+  }
+
+  // Update author (prompt) and update in Firestore
+  async function handleUpdateAuthor(book) {
+    try {
+      const newAuthor = prompt("Enter new author name:", book.author || "");
+      if (newAuthor === null) return; // cancelled
+      if (!newAuthor.trim()) return alert("Author cannot be empty.");
+      const docRef = doc(db, "books", book.id);
+      await updateDoc(docRef, { author: newAuthor.trim() });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update author: " + err.message);
+    }
+  }
+
+  // Delete a book
+  async function handleDeleteBook(book) {
+    try {
+      const ok = window.confirm(`Delete "${book.title}" by ${book.author}?`);
+      if (!ok) return;
+      await deleteDoc(doc(db, "books", book.id));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete book: " + err.message);
+    }
+  }
+
+  // Seed dummy books (adds 5 sample documents)
+  async function seedDummyBooks() {
+    try {
+      // Check if collection already has docs
+      const col = collection(db, "books");
+      const snap = await getDocs(col);
+      if (!window.confirm(`This will add 5 dummy books. Continue?`)) return;
+
+      const samples = [
+        {
+          title: "The Pragmatic Programmer",
+          author: "Andrew Hunt & David Thomas",
+          price: 39.99,
+          coverImageURL: "https://images-na.ssl-images-amazon.com/images/I/41as+WafrFL._SX258_BO1,204,203,200_.jpg",
+        },
+        {
+          title: "Clean Code",
+          author: "Robert C. Martin",
+          price: 34.99,
+          coverImageURL: "https://images-na.ssl-images-amazon.com/images/I/41xShlnTZTL._SX374_BO1,204,203,200_.jpg",
+        },
+        {
+          title: "You Don't Know JS Yet",
+          author: "Kyle Simpson",
+          price: 0,
+          coverImageURL: "https://images-na.ssl-images-amazon.com/images/I/51v0ZQ1Jv-L._SX379_BO1,204,203,200_.jpg",
+        },
+        {
+          title: "Design Patterns",
+          author: "Erich Gamma et al.",
+          price: 49.5,
+          coverImageURL: "https://images-na.ssl-images-amazon.com/images/I/51k0qa6z1aL._SX342_SY445_QL70_ML2_.jpg",
+        },
+        {
+          title: "Eloquent JavaScript",
+          author: "Marijn Haverbeke",
+          price: 19.99,
+          coverImageURL: "https://images-na.ssl-images-amazon.com/images/I/51m7e9w+HS._SX376_BO1,204,203,200_.jpg",
+        },
+      ];
+
+      for (const s of samples) {
+        await addDoc(collection(db, "books"), { ...s, createdAt: new Date() });
+      }
+
+      alert("Seeded sample books.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to seed books: " + err.message);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 text-gray-900 p-6">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Sidebar (form) */}
+        <aside className="md:col-span-1 bg-white p-4 rounded-2xl shadow-md">
+          <h2 className="text-xl font-semibold mb-3">Add New Book</h2>
+          <form onSubmit={handleAddBook} className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium">Title</label>
+              <input
+                value={sidebar.title}
+                onChange={(e) => setSidebar((s) => ({ ...s, title: e.target.value }))}
+                className="mt-1 block w-full rounded-lg border-gray-200 shadow-sm p-2"
+                placeholder="Book title"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Author</label>
+              <input
+                value={sidebar.author}
+                onChange={(e) => setSidebar((s) => ({ ...s, author: e.target.value }))}
+                className="mt-1 block w-full rounded-lg border-gray-200 shadow-sm p-2"
+                placeholder="Author name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Price</label>
+              <input
+                value={sidebar.price}
+                onChange={(e) => setSidebar((s) => ({ ...s, price: e.target.value }))}
+                className="mt-1 block w-full rounded-lg border-gray-200 shadow-sm p-2"
+                placeholder="e.g. 29.99"
+                type="number"
+                step="0.01"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Image URL</label>
+              <input
+                value={sidebar.imageURL}
+                onChange={(e) => setSidebar((s) => ({ ...s, imageURL: e.target.value }))}
+                className="mt-1 block w-full rounded-lg border-gray-200 shadow-sm p-2"
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white">
+                Add Book
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebar({ title: "", author: "", price: "", imageURL: "" })}
+                className="px-4 py-2 rounded-lg border"
+              >
+                Clear
+              </button>
+            </div>
+
+            <div className="pt-4 border-t">
+              <button
+                type="button"
+                onClick={seedDummyBooks}
+                className="w-full px-3 py-2 rounded-lg bg-green-600 text-white"
+              >
+                Seed Dummy Books
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 pt-2">Realtime updates: any add/update/delete will reflect automatically.</p>
+          </form>
+        </aside>
+
+        {/* Main content: book grid */}
+        <main className="md:col-span-3">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Books</h1>
+            <div className="text-sm text-gray-600">Total: {books.length}</div>
+          </div>
+
+          {error && <div className="text-red-600 mb-2">{error}</div>}
+
+          {loading ? (
+            <div>Loading books...</div>
+          ) : books.length === 0 ? (
+            <div className="p-6 bg-white rounded-lg shadow text-gray-500">No books found. Use the form or press "Seed Dummy Books".</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {books.map((book) => (
+                <article key={book.id} className="bg-white rounded-2xl shadow-md overflow-hidden flex flex-col">
+                  <div className="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+                    {book.coverImageURL ? (
+                      <img
+                        src={book.coverImageURL}
+                        alt={book.title}
+                        className="object-cover w-full h-full"
+                        onError={(e) => {
+                          e.target.src = "https://via.placeholder.com/300x400?text=No+Image";
+                        }}
+                      />
+                    ) : (
+                      <div className="text-gray-400">No cover image</div>
+                    )}
+                  </div>
+
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="font-semibold text-lg leading-snug">{book.title}</h3>
+                    <p className="text-sm text-gray-600 mt-1">by {book.author}</p>
+                    <div className="mt-3 mb-4">
+                      <span className="inline-block px-3 py-1 rounded-full bg-gray-100 text-sm">₹{book.price}</span>
+                    </div>
+
+                    <div className="mt-auto flex gap-2">
+                      <button
+                        onClick={() => handleUpdateAuthor(book)}
+                        className="flex-1 px-3 py-2 rounded-lg border"
+                      >
+                        Update Author
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBook(book)}
+                        className="px-3 py-2 rounded-lg border bg-red-50 text-red-600"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => setModalBook(book)}
+                        className="px-3 py-2 rounded-lg border"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Modal for book details */}
+      {modalBook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 w-11/12 max-w-xl shadow-xl">
+            <div className="flex justify-between items-start">
+              <h3 className="text-xl font-semibold">{modalBook.title}</h3>
+              <button onClick={() => setModalBook(null)} className="text-gray-500">Close</button>
+            </div>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-1">
+                {modalBook.coverImageURL ? (
+                  <img src={modalBook.coverImageURL} alt={modalBook.title} className="w-full rounded" />
+                ) : (
+                  <div className="w-full h-40 bg-gray-100 rounded flex items-center justify-center">No image</div>
+                )}
+              </div>
+              <div className="sm:col-span-2">
+                <p><strong>Author:</strong> {modalBook.author}</p>
+                <p className="mt-2"><strong>Price:</strong> ₹{modalBook.price}</p>
+                <p className="mt-2 text-sm text-gray-600">ID: {modalBook.id}</p>
+                <div className="mt-4">
+                  <button
+                    onClick={() => {
+                      setModalBook(null);
+                      setTimeout(() => handleUpdateAuthor(modalBook), 200);
+                    }}
+                    className="px-3 py-2 rounded-lg border mr-2"
+                  >
+                    Edit Author
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setModalBook(null);
+                      setTimeout(() => handleDeleteBook(modalBook), 200);
+                    }}
+                    className="px-3 py-2 rounded-lg border bg-red-50 text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
